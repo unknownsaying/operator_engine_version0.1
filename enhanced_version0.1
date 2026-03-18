@@ -1,0 +1,472 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D Palindromic Fraction Engine · 5 ops to squares</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            font-family: 'Segoe UI', 'Arial', sans-serif;
+        }
+        #info-panel {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: rgba(10, 10, 25, 0.85);
+            backdrop-filter: blur(8px);
+            color: white;
+            padding: 18px 28px;
+            border-radius: 50px;
+            border-left: 6px solid #ffaa33;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.6);
+            z-index: 100;
+            pointer-events: none;
+            border: 1px solid rgba(255,170,100,0.3);
+        }
+        #info-panel h1 {
+            margin: 0;
+            font-size: 1.7rem;
+            font-weight: 400;
+            letter-spacing: 1px;
+        }
+        #info-panel h1 span.number {
+            color: #ffaa33;
+            font-weight: 600;
+        }
+        #info-panel h1 span.square {
+            color: #88ddff;
+            font-weight: 600;
+        }
+        #info-panel p {
+            margin: 8px 0 0;
+            opacity: 0.9;
+            font-size: 1.1rem;
+        }
+        #info-panel .ops {
+            color: #ffcc77;
+            font-weight: 500;
+        }
+        #status {
+            position: absolute;
+            bottom: 25px;
+            left: 25px;
+            color: rgba(220, 240, 255, 0.9);
+            background: rgba(20, 20, 40, 0.6);
+            backdrop-filter: blur(5px);
+            padding: 8px 20px;
+            border-radius: 40px;
+            font-size: 0.95rem;
+            border: 1px solid #5577aa;
+            z-index: 100;
+            letter-spacing: 0.5px;
+        }
+        .instruction {
+            position: absolute;
+            bottom: 25px;
+            right: 25px;
+            color: #ccddee;
+            background: rgba(0,0,0,0.5);
+            padding: 10px 18px;
+            border-radius: 30px;
+            font-size: 0.9rem;
+            backdrop-filter: blur(4px);
+            border: 1px solid #6688aa;
+            z-index: 100;
+        }
+    </style>
+</head>
+<body>
+    <div id="info-panel">
+        <h1>⚡ <span class="number">3 4 5 6 7 8 9</span>  →  palindromic fractions (odd/even)  →  <span class="square">9 16 25 36 49 64 81</span></h1>
+        <p>operations <span class="ops">+ &nbsp; − &nbsp; × &nbsp; ÷ &nbsp; %</span>  •  each cube: numerator/denominator = palindrome  •  3D game engine</p>
+    </div>
+    <div id="status">🌀 palindromic fraction pairs · orbiting operators · squares above</div>
+    <div class="instruction">🖱️ drag to rotate · scroll zoom · auto‑spin</div>
+
+    <!-- Import maps for Three.js and addons -->
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.128.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.128.0/examples/jsm/"
+            }
+        }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+        import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
+
+        // --- setup scene, camera, renderers ---
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x0b0b20); // deep cosmic
+        
+        const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.set(14, 8, 24);
+        camera.lookAt(0, 3, 0);
+
+        // WebGL renderer
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        document.body.appendChild(renderer.domElement);
+
+        // CSS2 renderer for crisp text labels
+        const labelRenderer = new CSS2DRenderer();
+        labelRenderer.setSize(window.innerWidth, window.innerHeight);
+        labelRenderer.domElement.style.position = 'absolute';
+        labelRenderer.domElement.style.top = '0px';
+        labelRenderer.domElement.style.left = '0px';
+        labelRenderer.domElement.style.pointerEvents = 'none';
+        document.body.appendChild(labelRenderer.domElement);
+
+        // --- controls ---
+        const controls = new OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.06;
+        controls.autoRotate = true;
+        controls.autoRotateSpeed = 0.9;
+        controls.enableZoom = true;
+        controls.maxPolarAngle = Math.PI / 2.2; // keep view above ground
+        controls.target.set(0, 3, 0);
+
+        // --- LIGHTS ---
+        const ambient = new THREE.AmbientLight(0x404060);
+        scene.add(ambient);
+
+        const mainLight = new THREE.DirectionalLight(0xfff5e6, 1.2);
+        mainLight.position.set(5, 18, 8);
+        mainLight.castShadow = true;
+        mainLight.receiveShadow = true;
+        mainLight.shadow.mapSize.width = 1024;
+        mainLight.shadow.mapSize.height = 1024;
+        mainLight.shadow.camera.near = 1;
+        mainLight.shadow.camera.far = 30;
+        mainLight.shadow.camera.left = -15;
+        mainLight.shadow.camera.right = 15;
+        mainLight.shadow.camera.top = 15;
+        mainLight.shadow.camera.bottom = -15;
+        scene.add(mainLight);
+
+        const fillLight1 = new THREE.PointLight(0x4466cc, 0.8);
+        fillLight1.position.set(-8, 6, 8);
+        scene.add(fillLight1);
+        
+        const fillLight2 = new THREE.PointLight(0xcc8844, 0.7);
+        fillLight2.position.set(8, 5, -8);
+        scene.add(fillLight2);
+
+        const backLight = new THREE.PointLight(0x8855aa, 0.5);
+        backLight.position.set(0, 4, -12);
+        scene.add(backLight);
+
+        // --- ground & effects ---
+        const gridHelper = new THREE.GridHelper(35, 25, 0x88aadd, 0x335588);
+        gridHelper.position.y = -0.01;
+        scene.add(gridHelper);
+
+        // transparent shadow plane
+        const planeMat = new THREE.ShadowMaterial({ opacity: 0.25, color: 0x000022 });
+        const plane = new THREE.Mesh(new THREE.PlaneGeometry(35, 35), planeMat);
+        plane.rotation.x = -Math.PI / 2;
+        plane.position.y = 0;
+        plane.receiveShadow = true;
+        scene.add(plane);
+
+        // starfield background particles
+        const starsGeo = new THREE.BufferGeometry();
+        const starsCount = 1200;
+        const starPos = new Float32Array(starsCount * 3);
+        for (let i = 0; i < starsCount; i++) {
+            const r = 60 + Math.random() * 50;
+            const theta = Math.random() * Math.PI * 2;
+            const phi = Math.acos(2 * Math.random() - 1);
+            starPos[i*3] = Math.sin(phi) * Math.cos(theta) * r;
+            starPos[i*3+1] = Math.sin(phi) * Math.sin(theta) * r * 0.4;
+            starPos[i*3+2] = Math.cos(phi) * r;
+        }
+        starsGeo.setAttribute('position', new THREE.BufferAttribute(starPos, 3));
+        const starsMat = new THREE.PointsMaterial({ color: 0xaaccff, size: 0.25, transparent: true, opacity: 0.8 });
+        const stars = new THREE.Points(starsGeo, starsMat);
+        scene.add(stars);
+
+        // --- data: numbers 3..9, squares, and palindromic fraction examples (odd/even) ---
+        const baseNumbers = [3, 4, 5, 6, 7, 8, 9];
+        const squares = [9, 16, 25, 36, 49, 64, 81];
+        
+        // Palindromic fraction pairs (numerator / denominator) – both same length, odd/even mix, palindrome property
+        // For each base number we assign a unique palindromic fraction string (odd-length and even-length palindromes)
+        const fractionPairs = [
+            { num: "303", den: "313", info: "odd" },      // 3 -> 303/313  (both palindromes)
+            { num: "4224", den: "4334", info: "even" },    // 4
+            { num: "51315", den: "51415", info: "odd" },   // 5
+            { num: "62426", den: "62526", info: "even" },  // 6
+            { num: "73137", den: "73237", info: "odd" },   // 7
+            { num: "84248", den: "84348", info: "even" },  // 8
+            { num: "95359", den: "95459", info: "odd" }    // 9
+        ];
+
+        // operation symbols
+        const ops = ['+', '−', '×', '÷', '%']; // modulo included
+
+        // colors for each base number
+        const colors = [
+            0xff6666, // 3 red
+            0xffaa44, // 4 orange
+            0xffdd55, // 5 gold
+            0x88dd77, // 6 green
+            0x66ccff, // 7 sky
+            0xaa88ff, // 8 purple
+            0xff88cc  // 9 pink
+        ];
+
+        // main group holding all clusters
+        const worldGroup = new THREE.Group();
+
+        // create each number's interactive cluster
+        baseNumbers.forEach((num, idx) => {
+            // spread along X axis
+            const xPos = (num - 6) * 2.9; // gives approx -8.7, -5.8, -2.9, 0, 2.9, 5.8, 8.7
+            
+            const cluster = new THREE.Group();
+            cluster.position.set(xPos, 0.8, 0); // slight lift
+
+            // --- Base: Main cube representing the number (nucleus) ---
+            const boxGeo = new THREE.BoxGeometry(1.6, 1.6, 1.6);
+            const boxMat = new THREE.MeshStandardMaterial({ color: colors[idx], emissive: 0x221100, roughness: 0.3, metalness: 0.2 });
+            const coreCube = new THREE.Mesh(boxGeo, boxMat);
+            coreCube.castShadow = true;
+            coreCube.receiveShadow = true;
+            coreCube.position.y = 0.8; // center at y=0.8+0.8=1.6
+            cluster.add(coreCube);
+
+            // number label on core (CSS2D)
+            const numDiv = document.createElement('div');
+            numDiv.textContent = num;
+            numDiv.style.color = 'white';
+            numDiv.style.fontSize = '32px';
+            numDiv.style.fontWeight = 'bold';
+            numDiv.style.background = 'rgba(20,20,50,0.8)';
+            numDiv.style.padding = '4px 14px';
+            numDiv.style.borderRadius = '30px';
+            numDiv.style.border = '2px solid #ffaa33';
+            numDiv.style.backdropFilter = 'blur(4px)';
+            numDiv.style.boxShadow = '0 0 20px rgba(255,170,100,0.5)';
+            const numLabel = new CSS2DObject(numDiv);
+            numLabel.position.set(0, 2.1, 0);
+            cluster.add(numLabel);
+
+            // --- Fraction representation (two small floating shapes above core) ---
+            // numerator sphere (left)
+            const sphereNumGeo = new THREE.SphereGeometry(0.5, 20);
+            const sphereNumMat = new THREE.MeshStandardMaterial({ color: 0xffaa66, emissive: 0x331100 });
+            const sphereNum = new THREE.Mesh(sphereNumGeo, sphereNumMat);
+            sphereNum.castShadow = true;
+            sphereNum.receiveShadow = false;
+            sphereNum.position.set(-1.1, 2.6, 0.4);
+            cluster.add(sphereNum);
+
+            // denominator sphere (right)
+            const sphereDenGeo = new THREE.SphereGeometry(0.5, 20);
+            const sphereDenMat = new THREE.MeshStandardMaterial({ color: 0x88aaff, emissive: 0x112233 });
+            const sphereDen = new THREE.Mesh(sphereDenGeo, sphereDenMat);
+            sphereDen.castShadow = true;
+            sphereDen.receiveShadow = false;
+            sphereDen.position.set(1.1, 2.6, -0.2);
+            cluster.add(sphereDen);
+
+            // fraction line (thin cylinder)
+            const lineGeo = new THREE.CylinderGeometry(0.08, 0.08, 2.0, 8);
+            const lineMat = new THREE.MeshStandardMaterial({ color: 0xffdd99, emissive: 0x332211 });
+            const line = new THREE.Mesh(lineGeo, lineMat);
+            line.rotation.z = Math.PI / 2;
+            line.position.set(0, 2.6, 0.1);
+            line.castShadow = true;
+            cluster.add(line);
+
+            // text labels for numerator and denominator (palindromic numbers)
+            const fracPair = fractionPairs[idx];
+            
+            const numTxtDiv = document.createElement('div');
+            numTxtDiv.textContent = fracPair.num;
+            numTxtDiv.style.color = '#ffcc88';
+            numTxtDiv.style.fontSize = '20px';
+            numTxtDiv.style.fontWeight = '700';
+            numTxtDiv.style.background = 'rgba(40,20,10,0.8)';
+            numTxtDiv.style.padding = '2px 10px';
+            numTxtDiv.style.borderRadius = '20px';
+            numTxtDiv.style.border = '1px solid #ffaa66';
+            const numTxtLabel = new CSS2DObject(numTxtDiv);
+            numTxtLabel.position.set(-1.1, 3.3, 0.4);
+            cluster.add(numTxtLabel);
+
+            const denTxtDiv = document.createElement('div');
+            denTxtDiv.textContent = fracPair.den;
+            denTxtDiv.style.color = '#aaddff';
+            denTxtDiv.style.fontSize = '20px';
+            denTxtDiv.style.fontWeight = '700';
+            denTxtDiv.style.background = 'rgba(10,30,50,0.8)';
+            denTxtDiv.style.padding = '2px 10px';
+            denTxtDiv.style.borderRadius = '20px';
+            denTxtDiv.style.border = '1px solid #88aaff';
+            const denTxtLabel = new CSS2DObject(denTxtDiv);
+            denTxtLabel.position.set(1.1, 3.3, -0.2);
+            cluster.add(denTxtLabel);
+
+            // small "odd/even" tag
+            const parityDiv = document.createElement('div');
+            parityDiv.textContent = fracPair.info;
+            parityDiv.style.color = '#ccc';
+            parityDiv.style.fontSize = '14px';
+            parityDiv.style.background = 'rgba(0,0,0,0.5)';
+            parityDiv.style.padding = '2px 8px';
+            parityDiv.style.borderRadius = '12px';
+            parityDiv.style.border = '1px solid #aaa';
+            const parityLabel = new CSS2DObject(parityDiv);
+            parityLabel.position.set(0, 1.0, 1.5);
+            cluster.add(parityLabel);
+
+            // --- Top shape: dodecahedron representing the square value ---
+            const topGeo = new THREE.DodecahedronGeometry(0.9);
+            const topMat = new THREE.MeshStandardMaterial({ color: 0xffaa33, emissive: 0x442200, roughness: 0.25, metalness: 0.3 });
+            const topShape = new THREE.Mesh(topGeo, topMat);
+            topShape.castShadow = true;
+            topShape.receiveShadow = true;
+            topShape.position.y = 4.2;
+            cluster.add(topShape);
+
+            // square label
+            const sqDiv = document.createElement('div');
+            sqDiv.textContent = squares[idx];
+            sqDiv.style.color = '#ffdd44';
+            sqDiv.style.fontSize = '32px';
+            sqDiv.style.fontWeight = '800';
+            sqDiv.style.background = 'rgba(20,20,40,0.8)';
+            sqDiv.style.padding = '4px 16px';
+            sqDiv.style.borderRadius = '40px';
+            sqDiv.style.border = '3px solid #ffaa33';
+            sqDiv.style.textShadow = '0 0 20px gold';
+            sqDiv.style.backdropFilter = 'blur(4px)';
+            const sqLabel = new CSS2DObject(sqDiv);
+            sqLabel.position.set(0, 5.4, 0);
+            cluster.add(sqLabel);
+
+            // --- Orbiting operation ring (five symbols) ---
+            const ringGroup = new THREE.Group();
+            ringGroup.position.y = 2.4; // mid-height
+
+            const opRadius = 2.4;
+            ops.forEach((op, i) => {
+                // small glowing sphere
+                const orbGeo = new THREE.SphereGeometry(0.28, 12);
+                const orbMat = new THREE.MeshStandardMaterial({ color: 0xffaa55, emissive: 0x442200 });
+                const orb = new THREE.Mesh(orbGeo, orbMat);
+                orb.castShadow = true;
+                const angle = (i / ops.length) * Math.PI * 2;
+                orb.position.set(Math.cos(angle) * opRadius, 0, Math.sin(angle) * opRadius);
+                ringGroup.add(orb);
+
+                // operation text
+                const opDiv = document.createElement('div');
+                opDiv.textContent = op;
+                opDiv.style.color = '#111';
+                opDiv.style.fontSize = '26px';
+                opDiv.style.fontWeight = 'bold';
+                opDiv.style.background = '#ffdb9f';
+                opDiv.style.padding = '4px 12px';
+                opDiv.style.borderRadius = '50%';
+                opDiv.style.border = '3px solid #ffaa33';
+                opDiv.style.boxShadow = '0 0 20px #ffaa33';
+                opDiv.style.width = '46px';
+                opDiv.style.height = '46px';
+                opDiv.style.display = 'flex';
+                opDiv.style.alignItems = 'center';
+                opDiv.style.justifyContent = 'center';
+                const opLabel = new CSS2DObject(opDiv);
+                opLabel.position.set(Math.cos(angle) * opRadius, 0.35, Math.sin(angle) * opRadius);
+                ringGroup.add(opLabel);
+            });
+
+            cluster.add(ringGroup);
+
+            // store ring for animation
+            cluster.userData = { ring: ringGroup, speed: 0.008 + idx * 0.002 };
+
+            worldGroup.add(cluster);
+        });
+
+        scene.add(worldGroup);
+
+        // --- extra floating particles for atmosphere ---
+        const particleCount = 600;
+        const particleGeo = new THREE.BufferGeometry();
+        const particlePositions = new Float32Array(particleCount * 3);
+        for (let i = 0; i < particleCount; i++) {
+            particlePositions[i*3] = (Math.random() - 0.5) * 50;
+            particlePositions[i*3+1] = (Math.random() * 15);
+            particlePositions[i*3+2] = (Math.random() - 0.5) * 50;
+        }
+        particleGeo.setAttribute('position', new THREE.BufferAttribute(particlePositions, 3));
+        const particleMat = new THREE.PointsMaterial({ color: 0x99aaff, size: 0.12, transparent: true });
+        const particles = new THREE.Points(particleGeo, particleMat);
+        scene.add(particles);
+
+        // --- subtle rotating glow lights (for effect) ---
+        const glowLight1 = new THREE.PointLight(0x3366cc, 0.5);
+        glowLight1.position.set(4, 5, 6);
+        scene.add(glowLight1);
+        const glowLight2 = new THREE.PointLight(0xcc6633, 0.5);
+        glowLight2.position.set(-5, 4, -6);
+        scene.add(glowLight2);
+
+        // --- animation loop ---
+        let clock = new THREE.Clock();
+
+        function animate() {
+            const delta = clock.getDelta();
+            const time = performance.now() / 1000;
+
+            // rotate each operation ring
+            worldGroup.children.forEach((cluster, index) => {
+                if (cluster.userData.ring) {
+                    cluster.userData.ring.rotation.y += 0.012 * (1 + index * 0.1);
+                }
+            });
+
+            // slight drift for stars
+            stars.rotation.y += 0.00015;
+            stars.rotation.x += 0.0001;
+
+            // rotate particles slowly
+            particles.rotation.y += 0.0002;
+
+            controls.update();
+
+            renderer.render(scene, camera);
+            labelRenderer.render(scene, camera);
+
+            requestAnimationFrame(animate);
+        }
+
+        animate();
+
+        // --- resize handler ---
+        window.addEventListener('resize', onWindowResize, false);
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            labelRenderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        // small decorative axis helper (commented if not wanted)
+        // const axesHelper = new THREE.AxesHelper(8);
+        // scene.add(axesHelper);
+    </script>
+</body>
+</html>
